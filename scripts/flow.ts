@@ -41,7 +41,7 @@ async function solveWithHints(page: Page) {
   await page.waitForTimeout(200);
   await solveWithHints(page);
   assert.equal(await page.textContent('#end-title'), 'Cleared');
-  assert.match((await page.textContent('#end-note'))!, /doesn't count/);
+  assert.match((await page.textContent('#end-note'))!, /won't count/);
   const stats = await page.evaluate(() => JSON.parse(localStorage.getItem('minefield:v1')!).stats);
   assert.equal(stats.intermediate.won, 1);
   assert.equal(stats.intermediate.best.length, 0, 'assisted wins stay off the best times');

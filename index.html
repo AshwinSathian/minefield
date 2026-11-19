@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Minefield</title>
-<meta name="description" content="Minesweeper with boards you can always clear by logic, hints that explain the reasoning, and exact mine odds for every cell.">
+<meta name="description" content="Minesweeper you can solve without guessing. Hints show the numbers that prove a move, and odds give every hidden cell its exact chance of a mine.">
 <meta name="theme-color" content="#ECE7DB" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121417" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Minefield">
-<meta property="og:description" content="Minesweeper with boards you can always clear by logic, hints that explain the reasoning, and exact mine odds for every cell.">
+<meta property="og:description" content="Minesweeper you can solve without guessing. Hints show the numbers that prove a move, and odds give every hidden cell its exact chance of a mine.">
 <meta property="og:image" content="https://minefield.ashwinsathian.com/og.png">
 <meta property="og:url" content="https://minefield.ashwinsathian.com/">
 <meta name="twitter:card" content="summary_large_image">
@@ -101,11 +101,12 @@
       <li><button class="mode" data-mode="expert"><b>Expert</b><span>30 × 16 · 99 mines</span></button></li>
       <li><button class="mode" data-mode="daily"><b>Daily</b><span id="daily-sub">Same Expert board for everyone today</span></button></li>
       <li class="custom">
-        <button class="mode" data-mode="custom"><b>Custom</b><span id="custom-sub"></span></button>
-        <div class="custom-fields">
+        <button class="mode" data-mode="custom" aria-expanded="false" aria-controls="custom-fields"><b>Custom</b><span id="custom-sub"></span></button>
+        <div class="custom-fields" id="custom-fields">
           <label>Width<input id="cw" type="number" inputmode="numeric" min="5" max="60"></label>
           <label>Height<input id="ch" type="number" inputmode="numeric" min="5" max="40"></label>
           <label>Mines<input id="cm" type="number" inputmode="numeric" min="1"></label>
+          <p id="cap" class="cap" aria-live="polite"></p>
           <button id="cstart" class="btn primary">Start</button>
         </div>
       </li>

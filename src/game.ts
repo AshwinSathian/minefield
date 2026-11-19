@@ -58,7 +58,8 @@ export class Game {
   get flagsLeft() { let f = 0; for (const x of this.flag) f += x; return this.size.mines - f; }
   get over() { return this.status === 'won' || this.status === 'lost'; }
   get elapsed() { return this.elapsedMs + (this.since === null ? 0 : performance.now() - this.since); }
-  get bbbv() { return this.mines ? bbbv(this.size.w, this.size.h, this.mines) : 0; }
+  /** 3BV left for the player: a board that starts open has already spent the one click its opening is worth. */
+  get bbbv() { return this.mines ? bbbv(this.size.w, this.size.h, this.mines) - (this.mode === 'daily' || this.mode === 'shared' ? 1 : 0) : 0; }
 
   /** Lay the mines. For fixed-start boards the start opens straight away and the clock waits for the first move. */
   begin(mines: Uint8Array, start: number, openStart: boolean): Result {

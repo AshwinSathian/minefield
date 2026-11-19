@@ -59,6 +59,7 @@ function setGame(g: Game) {
   hint = null; better = null; prob = null; dealing = false;
   cursor = g.start ?? Math.floor(g.size.h / 2) * g.size.w + Math.floor(g.size.w / 2);
   $('end').hidden = true;
+  document.body.classList.remove('ended');
   $('mode-name').textContent = modeLabel(g);
   zoom = 1;
   build();
@@ -70,7 +71,7 @@ function newGame(mode: Mode = S.mode) {
   if (mode !== 'shared') { S.mode = mode; persist(); }
   setGame(new Game(mode, sizeFor(mode), S.noGuess));
   save();
-  toast(coarse.matches ? 'Tap any cell to start. The first one is always clear.' : 'Click any cell to start. The first one is always clear.');
+  toast(coarse.matches ? 'First tap is always safe.' : 'First click is always safe.');
 }
 
 async function startDaily() {
@@ -161,7 +162,11 @@ function fitCell() {
   return Math.max(coarse.matches ? 20 : 16, Math.min(60, Math.floor(cell)));
 }
 
-function fit() { board.style.setProperty('--cell', Math.round(fitCell() * zoom) + 'px'); }
+function fit() {
+  const cell = Math.round(fitCell() * zoom);
+  board.style.setProperty('--cell', cell + 'px');
+  board.classList.toggle('tiny', cell < 26);
+}
 
 const touchesNumber = (i: number) => neighboursOf(i).some((j) => game.view[j] >= 0);
 
@@ -195,7 +200,8 @@ function renderCell(i: number) {
     el.dataset.p = touchesNumber(i) && p > 0 && p < 100 ? String(p) : '';
     el.style.setProperty('--pw', String(p));
     el.classList.toggle('zero', prob[i] === 0);
-  } else if (el.dataset.p !== undefined) { delete el.dataset.p; el.style.removeProperty('--pw'); el.classList.remove('zero'); }
+    el.classList.toggle('sure', prob[i] === 1);
+  } else if (el.dataset.p !== undefined) { delete el.dataset.p; el.style.removeProperty('--pw'); el.classList.remove('zero', 'sure'); }
 }
 
 function renderAll() {
@@ -271,7 +277,7 @@ function lost() {
   const rv = game.review();
   better = rv?.better ?? null;
   renderAll();
-  if (!game.recorded) { game.recorded = true; record(statKey(game.mode, game.noGuess), false, 0, 0, false); dailyResult(false); }
+  if (!game.recorded) { game.recorded = true; if (game.mode !== 'shared') record(statKey(game.mode, game.noGuess), false, 0, 0, false); dailyResult(false); }
   const pct = (p: number) => `${Math.max(1, Math.round(p * 100))}%`;
   let note = '';
   if (rv?.verdict === 'mistake') note = 'There was a safe move open. It\'s outlined in green.';
@@ -294,15 +300,16 @@ function won() {
   let newBest = false;
   if (!game.recorded) {
     game.recorded = true;
-    newBest = record(statKey(game.mode, game.noGuess), true, t, rate, !game.assisted).newBest;
+    // Shared boards can be crafted by anyone, and a win under a second is a board that solved itself.
+    if (game.mode !== 'shared') newBest = record(statKey(game.mode, game.noGuess), true, t, rate, !game.assisted && t >= 1000).newBest;
     dailyResult(true);
   }
   showEnd({
     title: game.mode === 'daily' ? 'Today\'s board, cleared' : 'Cleared',
     time: fmt(t, true),
     badge: newBest,
-    note: game.assisted ? 'Hints, odds or a take-back were used, so this run doesn\'t count toward best times.' : '',
-    stats: [['3BV', String(b3)], ['3BV/s', rate.toFixed(2)], ['Clicks', String(game.clicks)], ['Efficiency', Math.round((b3 / Math.max(1, game.clicks)) * 100) + '%']],
+    note: game.assisted ? 'Assisted, so it won\'t count toward best times.' : '',
+    stats: game.clicks ? [['3BV', String(b3)], ['3BV/s', rate.toFixed(2)], ['Clicks', String(game.clicks)], ['Efficiency', Math.round((b3 / game.clicks) * 100) + '%']] : [],
   });
   announce(`Cleared in ${fmt(t, true)}`);
 }
@@ -328,8 +335,9 @@ function showEnd(o: { title: string; time?: string; note?: string; badge?: boole
     return d;
   }));
   $('end-back').hidden = !o.canTakeBack;
-  $('end-share').textContent = game.mode === 'daily' && game.status === 'won' ? 'Share result' : 'Share board';
+  $('end-share').textContent = 'Share';
   $('end').hidden = false;
+  document.body.classList.add('ended');
 }
 
 $('end-again').onclick = () => newGame(game.mode === 'daily' || game.mode === 'shared' ? S.mode : game.mode);
@@ -339,6 +347,7 @@ $('end-share').onclick = share;
 function takeBack() {
   if (!game.takeBack()) return;
   $('end').hidden = true;
+  document.body.classList.remove('ended');
   better = null;
   renderAll();
   hud();
@@ -369,7 +378,7 @@ const HINT_TEXT: Record<string, [string, string]> = {
 };
 
 function showHint() {
-  if (game.status === 'ready') return toast(coarse.matches ? 'Tap any cell to start. The first one is always clear.' : 'Click any cell to start. The first one is always clear.');
+  if (game.status === 'ready') return toast(coarse.matches ? 'First tap is always safe.' : 'First click is always safe.');
   if (game.over) return;
   hint = game.hint(lastCell);
   sfx.hint();
@@ -397,7 +406,7 @@ function toggleOdds() {
     if (!prob) toast('Too many possibilities to count here.');
     else {
       const inner = [...game.view.keys()].find((i) => game.view[i] === HIDDEN && !touchesNumber(i));
-      toast(inner === undefined ? 'Shaded by the chance of a mine.' : `Shaded by the chance of a mine. Cells away from the numbers: ${Math.round(prob[inner] * 100)}% each.`, 4500);
+      toast(inner === undefined ? 'Odds on.' : `Odds on. Cells away from the numbers: ${Math.round(prob[inner] * 100)}%.`, 4500);
     }
     save();
   }
@@ -595,6 +604,14 @@ function openSheet(tab = 'play') {
   refreshSheet();
   sheet.showModal();
 }
+function capLine() {
+  const v = (id: string) => Number(($(id) as HTMLInputElement).value);
+  const c = clampCustom({ w: v('cw'), h: v('ch'), mines: 1e9 }, S.noGuess);
+  ($('cm') as HTMLInputElement).max = String(c.mines);
+  $('cap').textContent = `Up to ${c.mines} mines on ${c.w} × ${c.h}${S.noGuess ? ' with No guessing on' : ''}.`;
+}
+for (const id of ['cw', 'ch']) $(id).addEventListener('input', capLine);
+
 function selectTab(tab: string) {
   for (const b of sheet.querySelectorAll<HTMLElement>('[role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const p of sheet.querySelectorAll<HTMLElement>('.pane')) p.hidden = p.dataset.pane !== tab;
@@ -603,7 +620,17 @@ function selectTab(tab: string) {
 $('menu').onclick = () => openSheet();
 $('sheet-close').onclick = () => sheet.close();
 sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });
-for (const b of sheet.querySelectorAll<HTMLElement>('[role=tab]')) b.onclick = () => selectTab(b.dataset.tab!);
+const tabs = [...sheet.querySelectorAll<HTMLElement>('[role=tab]')];
+for (const b of tabs) {
+  b.onclick = () => selectTab(b.dataset.tab!);
+  b.onkeydown = (e) => {
+    const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (!d) return;
+    const next = tabs[(tabs.indexOf(b) + d + tabs.length) % tabs.length];
+    selectTab(next.dataset.tab!);
+    next.focus();
+  };
+}
 
 function refreshSheet() {
   for (const b of sheet.querySelectorAll<HTMLElement>('.mode')) b.classList.toggle('current', b.dataset.mode === game.mode);
@@ -613,7 +640,10 @@ function refreshSheet() {
   ($('ch') as HTMLInputElement).value = String(c.h);
   ($('cm') as HTMLInputElement).value = String(c.mines);
   const d = data.daily[today()];
-  $('daily-sub').textContent = !d ? 'Same Expert board for everyone today' : d.won ? `Cleared today in ${fmt(d.t, true)}` : 'Not cleared today. Try again tomorrow';
+  const next = new Date(); next.setUTCHours(24, 0, 0, 0);
+  const at = next.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  $('daily-sub').textContent = !d ? 'Same Expert board for everyone today' : d.won ? `Cleared today in ${fmt(d.t, true)}` : `Lost today's board. A new one at ${at}`;
+  capLine();
   ($('ng') as HTMLInputElement).checked = S.noGuess;
   ($('snd') as HTMLInputElement).checked = S.sound;
   ($('hap') as HTMLInputElement).checked = S.haptics;
@@ -623,7 +653,7 @@ function refreshSheet() {
 for (const b of sheet.querySelectorAll<HTMLElement>('.mode')) {
   b.onclick = () => {
     const m = b.dataset.mode as Mode;
-    if (m === 'custom') { b.parentElement!.classList.toggle('open'); return; }
+    if (m === 'custom') { b.setAttribute('aria-expanded', String(b.parentElement!.classList.toggle('open'))); capLine(); return; }
     sheet.close();
     newGame(m);
   };
